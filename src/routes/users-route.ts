@@ -32,4 +32,33 @@ export const usersRoute = new Elysia({ prefix: '/api/users' })
       email: t.String({ format: 'email' }),
       password: t.String()
     })
+  })
+  .post('/login', async ({ body, set }) => {
+    try {
+      const token = await usersService.login(body);
+      
+      return {
+        message: 'Login successful',
+        data: token
+      };
+    } catch (error: any) {
+      if (error.message === 'Invalid email or password') {
+        set.status = 401;
+        return {
+          message: 'Invalid email or password',
+          error: 'Invalid credentials'
+        };
+      }
+      
+      set.status = 400;
+      return {
+        message: 'Bad Request',
+        error: error.message
+      };
+    }
+  }, {
+    body: t.Object({
+      email: t.String({ format: 'email' }),
+      password: t.String()
+    })
   });
