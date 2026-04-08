@@ -8,7 +8,7 @@ export default {
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'test',
+    database: process.env.DB_NAME || 'learn_vibe_coding',
     port: Number(process.env.DB_PORT) || 3306,
   },
 } satisfies Config;
