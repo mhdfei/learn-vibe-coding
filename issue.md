@@ -1,105 +1,75 @@
-# Fitur Login User & Manajemen Session (API)
+# Fitur Get Current User (API)
 
-Dokumen ini berisi panduan dan tahapan implementasi fitur login user beserta pembuatan session token. Silakan ikuti instruksi di bawah ini secara sistematis.
+Dokumen ini berisi panduan perencanaan dan tahapan implementasi API untuk mengambil data user saat ini yang sedang *login*. Instruksi ini disusun agar dapat dikerjakan secara sistematis dan bertahap.
 
-## 1. Pembuatan Schema Database
+## Spesifikasi API
 
-Buat definisi tabel `sessions` menggunakan Drizzle ORM (tambahkan pada file schema yang sudah ada, misalnya `src/db/schema.ts`).
+- **Fungsi:** Mendapatkan data user saat ini yang sedang login.
+- **Metode HTTP:** `GET`
+- **Endpoint:** `/api/users/current`
 
-**Struktur Tabel `sessions`:**
-- `id`: integer, auto increment, primary key
-- `token`: varchar (panjang 255), not null. Nilai dari field ini berupa UUID yang akan di-generate saat user berhasil login.
-- `user_id`: integer. Foreign Key (FK) yang mereferensikan kolom `id` pada tabel `users`.
-- `created_at`: timestamp, default `current_timestamp`.
+### URL & Headers
+Akses ke endpoint ini membutuhkan Token (sebagai autentikasi).
+- **Header:** `Authorization: Bearer <token>`
+*(Keterangan: `<token>` adalah string token yang ada dan valid di sistem/database).*
 
-*Setelah schema dibuat, jangan lupa jalankan command untuk men-generate dan mem-push schema ke database.*
-
----
-
-## 2. Struktur Folder & Controller/Service
-
-Gunakan struktur folder yang sudah ada di dalam `src`:
-- `src/routes`: Untuk menangani routing/endpoint web menggunakan ElysiaJS.
-- `src/services`: Berisi *business logic*, seperti pengecekan password, pembuatan token, dan interaksi database.
-
-**Format Penamaan File:**
-Gunakan/lanjutkan pada file yang sudah ada atau buat baru dengan format:
-- Route: `src/routes/users-route.ts`
-- Service: `src/services/users-service.ts`
-
----
-
-## 3. Spesifikasi Endpoint API
-
-Buat API endpoint untuk proses login user dengan spesifikasi berikut:
-
-- **Metode HTTP:** `POST`
-- **Endpoint:** `/api/users/login`
-
-### Request Body (JSON)
-Sesuai spesifikasi, API menerima request body dengan format berikut:
-*(Catatan: Meskipun umumnya login hanya membutuhkan email dan password, pastikan endpoint dapat menerima struktur ini sesuai request)*
+### Response Sukses
+Apabila token dikirim, valid, dan user ditemukan di sistem, kembalikan response seperti berikut:
 ```json
 {
-    "name": "John Doe",
-    "email": "johndoe@example.com",
-    "password": "password"
+    "data": {
+        "id": 1,
+        "name": "John Doe",
+        "email": "[EMAIL_ADDRESS]",
+        "created_at": "timestamp"
+    }
 }
 ```
 
-### Response Sukses (HTTP 200)
-Jika login berhasil dan password sesuai:
+### Response Error
+Apabila token tidak ada di header, token salah/kadaluarsa, atau user tidak dikenali, kembalikan response seperti berikut (gunakan HTTP status 401 Unauthorized):
 ```json
 {
-    "message": "Login successful",
-    "data": "123e4567-e89b-12d3-a456-426614174000" 
-}
-```
-*(Catatan: `data` berisi string UUID token yang baru di-generate)*
-
-### Response Error (HTTP 400/401)
-Jika kredensial salah, gagal login, atau user tidak ditemukan:
-```json
-{
-    "message": "Invalid email or password",
-    "error": "Invalid credentials"
+    "error": "Unauthorized"
 }
 ```
 
 ---
 
-## 4. Tahapan Implementasi Terperinci (Panduan Eksekusi)
+## Struktur Folder & Penamaan
 
-Berikut adalah langkah-langkah *(step-by-step)* pengerjaannya:
+Gunakan struktur folder yang telah ada di dalam direktori `src`:
+- **Routes (`src/routes/`)** : Direktori ini berisi definisi rute/endpoint HTTP dari aplikasi yang menggunakan framework **Elysia JS**. Gunakan format penamaan file seperti `users-route.ts`.
+- **Services (`src/services/`)** : Direktori ini berisi logic bisnis aplikasi dan interaksi dengan database (menggunakan Drizzle ORM). Gunakan format penamaan file seperti `users-service.ts`.
 
-1. **Update Schema Database:**
-   - Buka file schema Drizzle (`src/db/schema.ts`).
-   - Tambahkan skema tabel `sessions` dengan field `id`, `token`, `user_id`, dan `created_at`.
-   - Pastikan mendefinisikan relasi (Foreign Key) `user_id` ke tabel `users`.
-   - Buat migration dan push schema ke MySQL (misal menggunakan rutin perintah Drizzle yang ada di package.json).
+---
 
-2. **Update Service (`users-service.ts`):**
-   - Buka file `src/services/users-service.ts`.
-   - Buat fungsi baru (misal: `loginUser(payload)`).
-   - Di dalam fungsi tersebut:
-     - Cari data user di database berdasarkan `email` yang dikirim.
-     - Jika user tidak ditemukan, throw error (misal: "Invalid credentials").
-     - Jika ditemukan, komparasi (bandingkan) password plain-text dari request dengan password hash di database menggunakan library `bcryptjs` (method `compare`).
-     - Jika password tidak cocok, throw error.
-     - Jika cocok, generate UUID baru menggunakan library standard bawaan `crypto.randomUUID()` (Tersedia native di Bun/Node).
-     - Simpan data session baru (token UUID, dan `user_id` dari user yang bersangkutan) ke dalam tabel `sessions`.
-     - Kembalikan nilai token UUID tersebut sebagai output fungsi.
+## Tahapan Implementasi (Langkah per Langkah)
 
-3. **Update Route (`users-route.ts`):**
-   - Buka file `src/routes/users-route.ts`.
-   - Tambahkan endpoint baru: `.post('/login', ...)` (berada di bawah prefix `/api/users`).
-   - Ambil data `body` dari request.
-   - Panggil fungsi `loginUser` dari *users-service* di dalam block `try-catch`.
-   - Return response JSON sukses yang berisi token jika berhasil.
-   - Jika gagal, tangkap error di blok `catch` dan kembalikan struktur response JSON error.
+Berikut adalah panduan pengerjaan yang harus diikuti untuk mengimplementasikan fitur ini:
 
-4. **Uji Coba (Testing):**
-   - Jalankan server lokal.
-   - Kirimkan request `POST` ke `/api/users/login` menggunakan Postman/Bruno/cURL.
-   - Pastikan response sukses mengembalikan string token.
-   - Periksa database (tabel `sessions`) untuk memastikan data token dan `user_id` benar-benar tersimpan secara persisten.
+### 1. Pengembangan Logic di Layer "Service"
+1. Buka file `src/services/users-service.ts`.
+2. Buat fungsi baru dengan nama yang merepresentasikan aksi, contohnya: `getCurrentUser(token: string)`.
+3. Di dalam fungsi tersebut, implementasikan query *Drizzle ORM* ke database untuk mencari siapa pemilik/pengguna dari token tersebut (sesuaikan dengan tabel tempat relasi token tersimpan, baik tabel `users` atau `sessions` join `users`).
+4. Ambil dan seleksi kolom milik user: `id`, `name`, `email`, dan `created_at`.
+5. Jika query database tidak menemukan token yang cocok, *throw* error dengan pesan "Unauthorized".
+6. Jika data user ditemukan, *return* (kembalikan) nilai objek atau *record* user tersebut dari fungsi.
+
+### 2. Pemasangan Endpoint API di Layer "Routes"
+1. Buka file routing API Elysia, yakni `src/routes/users-route.ts`.
+2. Daftarkan *(register)* endpoint baru menggunakan method `.get('/current', ...)` yang mana akan melengkapi prefix `/api/users`.
+3. Di dalam *handler* endpoint tersebut, tangkap nilai dari header HTTP, khusus di bagian header `authorization` atau `Authorization`.
+4. String header ini biasanya berformat `Bearer <token_berupa_string>`. Lakukan pembersihan string/pemisahan (split) untuk mengekstrak string *token murni* (hilangkan kata awalan "Bearer ").
+5. Jika header Authorization tidak ada atau tidak valid bentuknya, langsung set HTTP response code ke `401` dan return JSON dengan struktur `{ "error": "Unauthorized" }`.
+6. Jika *token murni* didapat, panggil fungsi `getCurrentUser(token)` yang dibuat pada step sebelumnya ke dalam sebuah *try-catch block*.
+7. Apabila pemanggilan data *smooth* dan ada hasilnya, bungkus hasil tersebut di dalam format JSON dengan kunci "data" (sesuai spesifikasi Response Sukses).
+8. Pada blok `catch`, kalau mendeteksi pengecualian/Error, atur HTTP Code menjadi `401` dan kembalikan pesan JSON `{ "error": "Unauthorized" }`.
+
+### 3. Pengujian Fungsi (Testing)
+1. Jalankan development server lokal.
+2. Pertama, lakukan proses login *yang sudah di-develop sebelumnya* untuk memperoleh token valid terbaru.
+3. Melalui software *API Client* seperti Postman, Bruno, atau Insomnia; lakukan *GET request* ke `http://localhost:<PORT>/api/users/current`.
+4. Sematkan token tersebut di header **Authorization: Bearer <token_anda>**.
+5. Pastikan memunculkan struktur objek Response Data JSON, lengkap dengan id, nama, email dan status created.
+6. Lakukan pengujian tambahan dengan mengirim token *ngawur/random*. Pastikan merespons error dengan struktur pesan JSON `Unauthorized` serta Http status 401 dan aplikasi server *tidak crash*.
