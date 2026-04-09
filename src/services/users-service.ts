@@ -94,6 +94,14 @@ export class UsersService {
     const { password, ...userData } = user;
     return userData;
   }
+
+  async logout(token: string) {
+    const [result] = await db.delete(sessions).where(eq(sessions.token, token));
+    
+    if ((result as any).affectedRows === 0) {
+      throw new Error('Unauthorized');
+    }
+  }
 }
 
 export const usersService = new UsersService();

@@ -1,33 +1,29 @@
-# Fitur Get Current User (API)
+# Fitur Logout User (API)
 
-Dokumen ini berisi panduan perencanaan dan tahapan implementasi API untuk mengambil data user saat ini yang sedang *login*. Instruksi ini disusun agar dapat dikerjakan secara sistematis dan bertahap.
+Dokumen ini berisi spesifikasi kebutuhan dan panduan implementasi langkah demi langkah untuk fitur **Logout User**. Panduan ini difokuskan agar mudah dijalankan secara runtut oleh programmer.
 
-## Spesifikasi API
+## Spesifikasi Endpoint API
 
-- **Fungsi:** Mendapatkan data user saat ini yang sedang login.
-- **Metode HTTP:** `GET`
-- **Endpoint:** `/api/users/current`
+- **Fungsi:** Mengakhiri sesi pengguna yang sedang login (Logout).
+- **Endpoint yang diminta:** `DELETE /api/users/current`
 
-### URL & Headers
-Akses ke endpoint ini membutuhkan Token (sebagai autentikasi).
-- **Header:** `Authorization: Bearer <token>`
-*(Keterangan: `<token>` adalah string token yang ada dan valid di sistem/database).*
+### Headers yang Diperlukan:
+- `Authorization: Bearer <token>`
+*(Keterangan: `<token>` adalah token string yang ada dan valid di dalam spesifik tabel users/sessions)*.
 
-### Response Sukses
-Apabila token dikirim, valid, dan user ditemukan di sistem, kembalikan response seperti berikut:
+### Response Sukses (HTTP 200)
+Jika token berhasil divalidasi dan sesi berhasil diakhiri/dihapus:
 ```json
 {
-    "data": {
-        "id": 1,
-        "name": "John Doe",
-        "email": "[EMAIL_ADDRESS]",
-        "created_at": "timestamp"
-    }
+    "data": "OK"
 }
 ```
 
-### Response Error
-Apabila token tidak ada di header, token salah/kadaluarsa, atau user tidak dikenali, kembalikan response seperti berikut (gunakan HTTP status 401 Unauthorized):
+### Business Logic Constraint Utama
+**PENTING:** Jika operasi logout dinyatakan sukses, maka **data session dengan token tersebut harus dihapus dari database (tabel session)**.
+
+### Response Error (HTTP 401)
+Jika terjadi kegagalan dari sisi autentikasi (misal token kosong, salah, atau session tidak valid), berikan respon error berikut:
 ```json
 {
     "error": "Unauthorized"
@@ -36,40 +32,41 @@ Apabila token tidak ada di header, token salah/kadaluarsa, atau user tidak diken
 
 ---
 
-## Struktur Folder & Penamaan
+## Aturan Struktur Folder & Penamaan
 
-Gunakan struktur folder yang telah ada di dalam direktori `src`:
-- **Routes (`src/routes/`)** : Direktori ini berisi definisi rute/endpoint HTTP dari aplikasi yang menggunakan framework **Elysia JS**. Gunakan format penamaan file seperti `users-route.ts`.
-- **Services (`src/services/`)** : Direktori ini berisi logic bisnis aplikasi dan interaksi dengan database (menggunakan Drizzle ORM). Gunakan format penamaan file seperti `users-service.ts`.
+Mohon gunakan lokasi dan *pattern* nama *file* yang telah diberlakukan di dalam folder `src`:
+- **Routes (`src/routes/`)** : Fungsinya berisi deklarasi rute/URL menggunakan *framework* Elysia JS. Standar contoh penamaan *file*: `users-route.ts`.
+- **Services (`src/services/`)** : Fungsinya berisi seluruh logika pengolahan *business rules* aplikasi dan komunikasi database (Drizzle ORM). Standar contoh penamaan *file*: `users-service.ts`.
 
 ---
 
-## Tahapan Implementasi (Langkah per Langkah)
+## Tahapan Implementasi (Panduan Urutan Eksekusi)
 
-Berikut adalah panduan pengerjaan yang harus diikuti untuk mengimplementasikan fitur ini:
+Langkah-langkah berikut menjabarkan tahapan kerja *step-by-step* untuk menyelesaikan fitur ini:
 
-### 1. Pengembangan Logic di Layer "Service"
-1. Buka file `src/services/users-service.ts`.
-2. Buat fungsi baru dengan nama yang merepresentasikan aksi, contohnya: `getCurrentUser(token: string)`.
-3. Di dalam fungsi tersebut, implementasikan query *Drizzle ORM* ke database untuk mencari siapa pemilik/pengguna dari token tersebut (sesuaikan dengan tabel tempat relasi token tersimpan, baik tabel `users` atau `sessions` join `users`).
-4. Ambil dan seleksi kolom milik user: `id`, `name`, `email`, dan `created_at`.
-5. Jika query database tidak menemukan token yang cocok, *throw* error dengan pesan "Unauthorized".
-6. Jika data user ditemukan, *return* (kembalikan) nilai objek atau *record* user tersebut dari fungsi.
+### Langkah 1: Modifikasi Layer "Service"
+1. Buka berkas `src/services/users-service.ts`.
+2. Bikin *method*/fungsi baru (misal: `logoutUser(token: string)`).
+3. Awali dengan melakukan pencarian (*query select/findFirst*) pada tabel database tempat token tersebut berada.
+4. Apabila token tidak diketemukan (berarti *session* palsu atau sudah *expired*), hentikan *flow* dengan cara *throw Error* (misal pesan errornya: "Unauthorized").
+5. Sebaliknya, apabila data tersebut valid dan ditemukan, tulis *query* Drizzle ORM untuk men-*delete* (menghapus) rekam jejak (*record*) row dari tabel *sessions* dengan kondisi (`WHERE`) nilai kolom token-nya sama dengan teks token parameter di atas.
+6. Kembalikan balikan *success state* apabila operasi delete database ini eksekusinya telah selesai.
 
-### 2. Pemasangan Endpoint API di Layer "Routes"
-1. Buka file routing API Elysia, yakni `src/routes/users-route.ts`.
-2. Daftarkan *(register)* endpoint baru menggunakan method `.get('/current', ...)` yang mana akan melengkapi prefix `/api/users`.
-3. Di dalam *handler* endpoint tersebut, tangkap nilai dari header HTTP, khusus di bagian header `authorization` atau `Authorization`.
-4. String header ini biasanya berformat `Bearer <token_berupa_string>`. Lakukan pembersihan string/pemisahan (split) untuk mengekstrak string *token murni* (hilangkan kata awalan "Bearer ").
-5. Jika header Authorization tidak ada atau tidak valid bentuknya, langsung set HTTP response code ke `401` dan return JSON dengan struktur `{ "error": "Unauthorized" }`.
-6. Jika *token murni* didapat, panggil fungsi `getCurrentUser(token)` yang dibuat pada step sebelumnya ke dalam sebuah *try-catch block*.
-7. Apabila pemanggilan data *smooth* dan ada hasilnya, bungkus hasil tersebut di dalam format JSON dengan kunci "data" (sesuai spesifikasi Response Sukses).
-8. Pada blok `catch`, kalau mendeteksi pengecualian/Error, atur HTTP Code menjadi `401` dan kembalikan pesan JSON `{ "error": "Unauthorized" }`.
+### Langkah 2: Modifikasi Layer "Routes"
+1. Buka berkas yang memuat rute API, yaitu `src/routes/users-route.ts`.
+2. Selipkan / tambahkan HTTP request handler untuk mengolah rute yang diarahkan (yaitu `.delete('/current', ...)`).
+3. Pada blok handler tersebut, akses elemen `headers` yang ditangkap HTTP request. Cari yang *key*-nya `authorization` atau `Authorization`.
+4. Jika ternyata tidak ada *Authorization* header yang ikut dikirim, atau tidak ada *prefix* kata "Bearer "-nya, abaikan *request*, *set status* menjadi 401, lalu *return error* json `{ "error": "Unauthorized" }`.
+5. Apabila ada, lakukan manipulasi *string array / substring / split* untuk hanya memisahkan *string token murni* tanpa pelengkap awalan Bearer. 
+6. Dengan menggunakan blok `try { ... } catch (e) { ... }`:
+    - Di dalam asrama blok `try`, panggil fungsi *service* yang telah di buat di Langkah 1 (misal `await usersService.logoutUser(tokenMurni)`).
+    - Jika *method* service tidak mendeteksi galat (*error*), berikan jawaban dengan me-return: `{ "data": "OK" }`.
+    - Di dalam blok `catch`, jika *error* tertangkap artinya ada kesalahan sesi. Timpa status respons dengan http kode `401` lalu beri nilai kembalian `{ "error": "Unauthorized" }`.
 
-### 3. Pengujian Fungsi (Testing)
-1. Jalankan development server lokal.
-2. Pertama, lakukan proses login *yang sudah di-develop sebelumnya* untuk memperoleh token valid terbaru.
-3. Melalui software *API Client* seperti Postman, Bruno, atau Insomnia; lakukan *GET request* ke `http://localhost:<PORT>/api/users/current`.
-4. Sematkan token tersebut di header **Authorization: Bearer <token_anda>**.
-5. Pastikan memunculkan struktur objek Response Data JSON, lengkap dengan id, nama, email dan status created.
-6. Lakukan pengujian tambahan dengan mengirim token *ngawur/random*. Pastikan merespons error dengan struktur pesan JSON `Unauthorized` serta Http status 401 dan aplikasi server *tidak crash*.
+### Langkah 3: Tes Percobaan API (Verification)
+1. Nyalakan layanan dev server lokal berbasis bun Anda.
+2. Gunakan *software tools* uji coba API semacam cURL, Postman Web, ThunderClient, atau Insomnia.
+3. Jalankan prosedur Login API terlebih dahulu untuk mencetak token sesi baru secara absah (*sah*).
+4. Selanjutnya oper URL Endpoint Logout ini, cantumkan HTTP Header `Authorization: Bearer <TOKEN_VALID_BARU>` lalu tekan tombol eksekusi (*Send*).
+5. Buktikan hasil awalannya menayangkan teks JSON `"data": "OK"`.
+6. Terakhir, tekan lagi berulang kali tombol eksekusi yang sama persis (`DELETE target endpoint yang sama dengan Header token lama` ini). Buktikan di operasi berikutan ini HTTP merespon struktur terproteksi `"error": "Unauthorized"` dikarenakan hak privilese *session* sudah dilebur dari dalam database di pencetakan perdana.
